@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fvs-postgres
+    environment:
+      POSTGRES_USER: fvs_user
+      POSTGRES_PASSWORD: fvs_password
+      POSTGRES_DB: face_voting_system
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fvs_user -d face_voting_system"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    container_name: fvs-server
+    environment:
+      DATABASE_URL: postgresql://fvs_user:fvs_password@postgres:5432/face_voting_system?schema=public
+      JWT_SECRET: dev-secret-change-in-production
+      JWT_EXPIRES_IN: 30m
+      NODE_ENV: development
+      PORT: 3001
+      FRONTEND_URL: http://localhost:5173
+      SMTP_HOST: smtp.mailtrap.io
+      SMTP_PORT: 2525
+      SMTP_USER: ""
+      SMTP_PASS: ""
+      EMAIL_FROM: "noreply@facevoting.local"
+      ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef"
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "npx prisma migrate deploy && npm run dev"
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
+    container_name: fvs-client
+    environment:
+      VITE_API_URL: http://localhost:3001/api/v1
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    depends_on:
+      - server
+
+volumes:
+  postgres_data:

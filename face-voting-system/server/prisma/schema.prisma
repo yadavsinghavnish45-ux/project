@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String   @id @default(cuid())
+  fullName           String
+  username           String   @unique
+  email              String   @unique
+  passwordHash       String
+  emailVerified      Boolean  @default(false)
+  faceEmbeddingEnc   Bytes?   @map("face_embedding_enc")
+  photoPath          String?  @map("photo_path")
+  hasVoted           Boolean  @default(false) @map("has_voted")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  voteReceipt        VoteReceipt?
+  verificationSessions VerificationSession[]
+  emailVerification  EmailVerification?
+
+  @@map("users")
+}
+
+model EmailVerification {
+  id        String   @id @default(cuid())
+  userId    String   @unique @map("user_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_verifications")
+}
+
+model Admin {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  parties      Party[]
+
+  @@map("admins")
+}
+
+model Party {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  logoPath    String?  @map("logo_path")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  admin       Admin    @relation(fields: [createdBy], references: [id])
+  votes       Vote[]
+  sessions    VerificationSession[]
+
+  @@map("parties")
+}
+
+model Vote {
+  id        String   @id @default(cuid())
+  partyId   String   @map("party_id")
+  castAt    DateTime @default(now()) @map("cast_at")
+
+  party     Party    @relation(fields: [partyId], references: [id])
+
+  @@map("votes")
+}
+
+model VoteReceipt {
+  id        String   @id @default(cuid())
+  userId    String   @unique @map("user_id")
+  castAt    DateTime @default(now()) @map("cast_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("vote_receipts")
+}
+
+model VerificationSession {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  partyId     String   @map("party_id")
+  challenges  Json
+  status      String   @default("pending")
+  attempts    Int      @default(0)
+  tokenHash   String?  @map("token_hash")
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  party       Party    @relation(fields: [partyId], references: [id], onDelete: Cascade)
+
+  @@map("verification_sessions")
+}
